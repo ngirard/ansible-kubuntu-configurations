@@ -1,0 +1,6 @@
+---
+- name: Configure Kubuntu machines
+  hosts: kubuntu
+  become: true
+  roles:
+    - firefox_setup

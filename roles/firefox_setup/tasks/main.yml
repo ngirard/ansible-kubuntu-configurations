@@ -1,0 +1,47 @@
+- name: Remove Firefox snap package if it exists
+  ansible.builtin.command: snap remove firefox
+  ignore_errors: true
+
+- name: Ensure directory for APT repository keys exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Import Mozilla APT repository signing key using curl
+  ansible.builtin.shell:
+    cmd: "curl -s https://packages.mozilla.org/apt/repo-signing-key.gpg | gpg --dearmor > /etc/apt/keyrings/packages.mozilla.org.asc"
+    creates: /etc/apt/keyrings/packages.mozilla.org.asc
+
+- name: Verify the fingerprint of the Mozilla APT key
+  command: gpg --no-default-keyring --keyring /etc/apt/keyrings/packages.mozilla.org.asc --fingerprint
+  register: fingerprint_output
+  failed_when: "'35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3' not in fingerprint_output.stdout"
+
+- name: Add the Mozilla APT repository
+  ansible.builtin.lineinfile:
+    path: /etc/apt/sources.list.d/mozilla.list
+    line: "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main"
+    create: yes
+
+- name: Configure APT to prioritize Mozilla repository
+  copy:
+    dest: /etc/apt/preferences.d/mozilla
+    content: |
+      Package: *
+      Pin: origin packages.mozilla.org
+      Pin-Priority: 1000
+
+- name: Update the package list
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install Firefox
+  ansible.builtin.apt:
+    name: firefox
+    state: present
+
+- name: Install language pack for Firefox
+  ansible.builtin.apt:
+    name: "firefox-l10n-{{ firefox_language }}"
+    state: present
